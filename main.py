@@ -19,11 +19,10 @@ if __name__ == "__main__":
     QNLI_PATH = "QNLI/QNLI/train.tsv"
     BATCH_SIZE = 16
     data, labels = load_data(QNLI_PATH)
-    structBert, tokenizerBERT = loadStructBERT("config.json", ".", ".")
+    structBert, tokenizerBERT = loadStructBERT("config.json", "vocab.txt", "pytorch_model.bin")
     ALBERT, tokenizerALBERT = loadALBERT("albert-xxlarge-v2")
     MT_DNN, tokenizerMT_DNN = loadMT_DNN("mt_dnn_large.pt")
 
-    print(data[0])
     encoded_BERT = tokenizerBERT(data[0:BATCH_SIZE], return_tensors="pt", padding=True) #use this for both Mt_DNN and for structBERT
     encoded_ALBERT = tokenizerALBERT(data[0:BATCH_SIZE], return_tensors="pt", padding=True)
     print(encoded_BERT["input_ids"].size())

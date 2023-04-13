@@ -1,13 +1,26 @@
 import transformers
 from mt_dnn.model import MTDNNModel
 from experiments.exp_def import TaskDefs, EncoderModelType
-from transformers import BertConfig, BertTokenizer, AutoModel, AutoTokenizer, AlbertTokenizer, AlbertForSequenceClassification, BertModel 
+from transformers import BertTokenizer, AutoModel, AutoTokenizer, AlbertTokenizer, AlbertForSequenceClassification, BertModel 
+from modeling import BertConfig, BertForSequenceClassificationMultiTask
+import tokenization
 import torch
 
-def loadStructBERT(config_path, model_path, vocab_path):
-    config = BertConfig.from_json_file(config_path)
-    model = AutoModel.from_pretrained(model_path, config=config)
-    tokenizer = AutoTokenizer.from_pretrained(vocab_path, config=config)
+def loadStructBERT(config_path, vocab_path, model_path):
+    bert_config = BertConfig.from_json_file(config_path)
+    label_list = [["entailment", "not_entailment"]]
+    model = BertForSequenceClassificationMultiTask(bert_config, label_list, "bert")
+    new_state_dict = {}
+    state_dict = torch.load(model_path, map_location='cuda')
+    for key in state_dict:
+        if key.startswith('bert.'):
+            new_state_dict[key[5:]] = state_dict[key]
+        elif key.startswith('module.bert.'):
+            new_state_dict[key[12:]] = state_dict[key]
+        else:
+            pass
+    model.bert.load_state_dict(new_state_dict)    
+    tokenizer = tokenization.FullTokenizer(vocab_file=vocab_path)
     return model, tokenizer
 
 def loadMT_DNN(model_path): #this one doesn't have a tokenizer
