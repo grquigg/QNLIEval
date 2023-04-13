@@ -30,4 +30,7 @@ if __name__ == "__main__":
     print(encoded_ALBERT["input_ids"].size())
     output_SBERT = structBert(**encoded_BERT)
     output_ALBERT = ALBERT(**encoded_ALBERT)
-    output_MT_DNN = MT_DNN(**encoded_BERT)
+    print(output_SBERT["pooler_output"].size())
+    print(output_SBERT["last_hidden_state"].size())
+    print(output_ALBERT)
+    #output_MT_DNN = MT_DNN.predict(**encoded_BERT)

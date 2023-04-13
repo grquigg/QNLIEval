@@ -12,3 +12,4 @@ unzip QNLIv2.zip -d QNLI
 
 git clone https://github.com/namisan/mt-dnn.git
 mv mt-dnn mt_dnn
+mv mt_dnn/* .
