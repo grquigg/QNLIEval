@@ -1,5 +1,6 @@
 #StructBERT
-
+wget https://raw.githubusercontent.com/alibaba/AliceMind/main/StructBERT/modeling.py
+wget https://raw.githubusercontent.com/alibaba/AliceMind/main/StructBERT/tokenization.py
 wget https://raw.githubusercontent.com/alibaba/AliceMind/main/StructBERT/config/large_bert_config.json && mv large_bert_config.json config.json
 wget https://raw.githubusercontent.com/alibaba/AliceMind/main/StructBERT/config/vocab.txt
 wget https://alice-open.oss-cn-zhangjiakou.aliyuncs.com/StructBERT/en_model && mv en_model pytorch_model.bin
