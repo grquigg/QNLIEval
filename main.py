@@ -2,6 +2,8 @@ from load_models import loadStructBERT, loadALBERT, loadMT_DNN
 import pandas as pd
 import tokenization
 import torch
+from experiments.exp_def import TaskDefs
+from mt_dnn.batcher import SingleTaskDataset
 LABELS = {"not_entailment": 0, "entailment": 1}
 
 def convert_to_seq(data, prompt):
@@ -17,8 +19,6 @@ def tokenizeForStructBERT(data, tokenizer, max_seq_length):
     for entry in data:
         tokens_a = tokenizer.tokenize(entry[0])
         tokens_b = tokenizer.tokenize(entry[1])
-        print(tokens_a)
-        print(tokens_b)
         tokens = []
         segment_ids = []
         tokens.append("[CLS]")
@@ -29,12 +29,11 @@ def tokenizeForStructBERT(data, tokenizer, max_seq_length):
         tokens.append("[SEP]")
         segment_ids.append(0)
 
-        if tokens_b:
-            for token in tokens_b:
-                tokens.append(token)
-                segment_ids.append(1)
-            tokens.append("[SEP]")
+        for token in tokens_b:
+            tokens.append(token)
             segment_ids.append(1)
+        tokens.append("[SEP]")
+        segment_ids.append(1)
 
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
@@ -54,15 +53,19 @@ def tokenizeForStructBERT(data, tokenizer, max_seq_length):
         input_id.append(input_ids)
         segment_id.append(segment_ids)
         input_masks.append(input_mask)
+      
     return {"input_ids": torch.tensor(input_id), "segment_ids": torch.tensor(segment_id), "input_masks": torch.tensor(input_masks)}
-
+def tokenizeForMTDNN(data):
+    pass
 def tokenizerFn(data, tokenizer, model, prompt, max_seq_len):
     seqs = convert_to_seq(data, prompt)
     if(model == "albert"):
         inputs = tokenizer(seqs, return_tensors="pt", padding=True)
     elif(model == "structBERT"):
-        input = tokenizeForStructBERT(data, tokenizer, max_seq_len)
-    return input
+        inputs = tokenizeForStructBERT(data, tokenizer, max_seq_len)
+    elif(model == "mt_dnn"):
+        inputs = tokenizer(seqs, return_tensors="pt", padding=True)
+    return inputs
 
 def load_data(path):
     df = pd.read_csv(path, delimiter='\t', quoting=3)
@@ -76,27 +79,47 @@ def load_data(path):
     return data, labels
 
 if __name__ == "__main__":
-    QNLI_PATH = "QNLI/QNLI/dev.tsv"
-    BATCH_SIZE = 8
+    QNLI_PATH = "QNLI/QNLI/train.tsv"
+    BATCH_SIZE = 4
     MAX_SEQ_LEN = 256
     PROMPT = "[CLS] {} [SEP] {} [SEP]"
     data, labels = load_data(QNLI_PATH)
+    print(len(data))
+    num_correct = 0
     structBert, tokenizerBERT = loadStructBERT("config.json", "vocab.txt", "pytorch_model.bin")
-    ALBERT, tokenizerALBERT = loadALBERT("albert-xxlarge-v2")
-    MT_DNN, tokenizerMT_DNN = loadMT_DNN("mt_dnn_large.pt")
-    encoding = tokenizerFn(data[0:BATCH_SIZE], tokenizerBERT, "structBERT", PROMPT, MAX_SEQ_LEN)
-    label = torch.tensor(labels[0:BATCH_SIZE])
-    label = torch.reshape(label, (1,1,BATCH_SIZE))
-    logits = structBert(encoding["input_ids"], encoding["segment_ids"], encoding["input_masks"], label, None)
-    print(logits)
-    raise NotImplementedError()
-    encoded_BERT = tokenizerBERT.tokenize(data[0]) #use this for both Mt_DNN and for structBERT
-    print(encoded_BERT)
-    encoded_ALBERT = tokenizerALBERT(data[0:BATCH_SIZE], return_tensors="pt", padding=True)
-    print(encoded_ALBERT["input_ids"].size())
-    output_SBERT = structBert(**encoded_BERT)
-    output_ALBERT = ALBERT(**encoded_ALBERT)
-    print(output_SBERT["pooler_output"].size())
-    print(output_SBERT["last_hidden_state"].size())
-    print(output_ALBERT)
-    #output_MT_DNN = MT_DNN.predict(**encoded_BERT)
+    #print(structBert.bert.encoder)
+    #ALBERT, tokenizerALBERT = loadALBERT("albert-xxlarge-v2")
+    #MT_DNN, tokenizerMT_DNN = loadMT_DNN("mt_dnn_large.pt")
+    for i in range(0, len(data), BATCH_SIZE):
+        encoding = tokenizerFn(data[i:i+BATCH_SIZE], tokenizerBERT, "structBERT", PROMPT, MAX_SEQ_LEN)
+        label = torch.tensor(labels[i:i+BATCH_SIZE])
+        label = torch.reshape(label, (1,1,len(data[i:i+BATCH_SIZE])))
+        logits = structBert(encoding["input_ids"], encoding["segment_ids"], encoding["input_masks"], label, None)
+        #print(logits[0])
+        struct_bert_predictions = torch.argmax(logits[0], axis=1)
+        #print(struct_bert_predictions)
+        num_correct += torch.sum(label == struct_bert_predictions)
+        #print(num_correct.item() / ((i+1)*BATCH_SIZE))
+    #print("Accuracy: {}".format(num_correct.item() / len(data)))
+    #encoded_ALBERT = tokenizerFn(data[0:BATCH_SIZE], tokenizerALBERT, "albert", PROMPT, MAX_SEQ_LEN)
+    #output_ALBERT = ALBERT(**encoded_ALBERT)
+    #albert_predictions = torch.argmax(output_ALBERT.logits, axis=1)
+    #print(albert_predictions)
+    #output_MT_DNN = tokenizerFn(data[0:BATCH_SIZE], tokenizerMT_DNN, "mt_dnn", PROMPT, MAX_SEQ_LEN)
+    #print(output_MT_DNN)
+    #task = "qnli"
+    #task_defs = TaskDefs("experiments/glue/glue_task_gen_def.yml")
+    #assert task in task_defs._task_type_map
+    #assert task in task_defs._data_type_map
+    #assert task in task_defs._metric_meta_map
+    #prefix = task.split("_")[0]
+    #task_def = task_defs.get_task_def(prefix)
+    #print(task_def)   
+    #batch_meta = {
+    #    "task_id": "qnli",
+    #    "task_def": task_def.__dict__,
+    #    "input_len": len(output_MT_DNN.keys()) 
+    #}
+    #batch_data = [output_MT_DNN["input_ids"], output_MT_DNN["token_type_ids"], output_MT_DNN["attention_mask"]]
+    #print(batch_meta["input_len"])
+    #MT_DNN.predict(batch_meta, batch_data)

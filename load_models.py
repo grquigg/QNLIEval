@@ -5,22 +5,38 @@ from transformers import BertTokenizer, AutoModel, AutoTokenizer, AlbertTokenize
 from modeling import BertConfig, BertForSequenceClassificationMultiTask
 import tokenization
 import torch
-
+import random
+import numpy as np
 def loadStructBERT(config_path, vocab_path, model_path):
     bert_config = BertConfig.from_json_file(config_path)
     label_list = [["entailment", "not_entailment"]]
     model = BertForSequenceClassificationMultiTask(bert_config, label_list, "bert")
-    new_state_dict = {}
+    print(model)
+    new_state_dict = dict()
     state_dict = torch.load(model_path, map_location='cuda')
-    for key in state_dict:
-        if key.startswith('bert.'):
-            new_state_dict[key[5:]] = state_dict[key]
-        elif key.startswith('module.bert.'):
-            new_state_dict[key[12:]] = state_dict[key]
+    print("keys in state dict")
+    for item in state_dict:
+        print(item)
+        if item.lower().startswith('module'):
+            new_item = item[7:]
         else:
-            pass
-    model.bert.load_state_dict(new_state_dict)    
-    tokenizer = tokenization.FullTokenizer(vocab_file=vocab_path)
+            new_item = item
+        new_state_dict[new_item] = state_dict[item]
+    model_dict = model.state_dict()
+    print("keys in state dict but not in model architecture")
+    for key, value in new_state_dict.items():
+        if(key not in model_dict):
+            print(key)
+            print(new_state_dict[key].size())
+    print("keys in model dict but not in new state dict")
+    for key, value in model_dict.items():
+        if(key not in new_state_dict):
+            print(key)
+    same_state_dict = {k: v for k, v in new_state_dict.items() if k in model_dict and v.size() == model_dict[k].size()}
+    model_dict.update(same_state_dict)
+    model.load_state_dict(model_dict)
+    model.eval()
+    tokenizer = tokenization.FullTokenizer(vocab_file=vocab_path, do_lower_case=True)
     return model, tokenizer
 
 def loadMT_DNN(model_path): #this one doesn't have a tokenizer
@@ -53,6 +69,8 @@ def loadMT_DNN(model_path): #this one doesn't have a tokenizer
     config["warmup"] = 1000
     config["local_rank"] = -1
     config["multi_gpu_on"] = False
+    config["max_answer_len"] = 10
+    config["num_beams"] = 1    
     model = MTDNNModel(config, state_dict=state_dict, tokenizer=tokenizer)
     encoder_type = config.get("encoder_type", EncoderModelType.BERT)
 
