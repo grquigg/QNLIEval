@@ -733,18 +733,14 @@ class BertForSequenceClassificationMultiTask(nn.Module):
             if isinstance(module, nn.Linear):
                 module.bias.data.zero_()
         self.apply(init_weights)
-    def forward(self, input_ids, token_type_ids, attention_mask, labels=None, labels_index=None, epoch_id=-1, head_masks=None, adv_embedding=None, return_loss=False, return_embedding=False, loss_weight=None):
+    def forward(self, input_ids, token_type_ids, attention_mask, labels=None, labels_index=None, epoch_id=-1, head_masks=None, adv_embedding=None, return_embedding=False, loss_weight=None):
         all_encoder_layers, pooled_output = self.bert(input_ids, token_type_ids, attention_mask, epoch_id, head_masks, adv_embedding)
         pooled_output = self.dropout(pooled_output)
-        print(pooled_output.size())
         logits = [classifier(pooled_output) for classifier in self.classifier]
-        if(not return_loss):
-            return logits
         if labels is not None:
             loss_fct = CrossEntropyLoss(reduction='none')
             regression_loss_fct = nn.MSELoss(reduction='none')
             labels_lst = torch.unbind(labels, 1)
-            print(labels_lst)
             max_index = len(labels_lst)
             loss_lst = []
             for index, (label, logit) in enumerate(zip(labels_lst, logits)):
