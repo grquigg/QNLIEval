@@ -87,20 +87,30 @@ if __name__ == "__main__":
     print(len(data))
     num_correct = 0
     #structBert, tokenizerBERT = loadStructBERT("config.json", "vocab.txt", "pytorch_model.bin")
-    ALBERT, tokenizerALBERT = loadALBERT("albert-xxlarge-v2")
-    print(ALBERT)
-    #MT_DNN, tokenizerMT_DNN = loadMT_DNN("mt_dnn_large.pt")
+    MT_DNN, tokenizerMT_DNN = loadMT_DNN("mt_dnn_large.pt")
+    print(MT_DNN)
     for i in range(0, len(data), BATCH_SIZE):
-        encoding = tokenizerFn(data[i:i+BATCH_SIZE], tokenizerALBERT, "albert", PROMPT, MAX_SEQ_LEN)
+        encoding = tokenizerFn(data[i:i+BATCH_SIZE], tokenizerMT_DNN, "mt_dnn", PROMPT, MAX_SEQ_LEN)
+        print(encoding)
         label = torch.tensor(labels[i:i+BATCH_SIZE])
         label = torch.reshape(label, (1,1,len(data[i:i+BATCH_SIZE])))
-        #logits = structBert(encoding["input_ids"], encoding["segment_ids"], encoding["input_masks"], label, None)
-        output = ALBERT(**encoding)
-        #print(logits[0])
-        albert_predictions = torch.argmax(output.logits, axis=1)
-        print(albert_predictions)
-        num_correct += torch.sum(label == albert_predictions)
-        print(num_correct.item() / ((i+1)*BATCH_SIZE))
+        task = "qnli"
+        task_defs = TaskDefs("experiments/glue/glue_task_gen_def.yml")
+        assert task in task_defs._task_type_map
+        assert task in task_defs._data_type_map
+        assert task in task_defs._metric_meta_map
+        prefix = task.split("_")[0]
+        task_def = task_defs.get_task_def(prefix)
+        print(task_def)
+        batch_meta = {
+            "task_id": "qnli",
+            "task_def": task_def.__dict__,
+            "input_len": len(encoding.keys())
+        }
+        batch_data = [encoding["input_ids"], encoding["token_type_ids"], encoding["attention_mask"]]
+        print(batch_meta["input_len"])
+        MT_DNN.predict(batch_meta, batch_data)
+
     #print("Accuracy: {}".format(num_correct.item() / len(data)))
     #encoded_ALBERT = tokenizerFn(data[0:BATCH_SIZE], tokenizerALBERT, "albert", PROMPT, MAX_SEQ_LEN)
     #output_ALBERT = ALBERT(**encoded_ALBERT)
